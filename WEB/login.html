@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>AIRead 로그인</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Jua&family=Gowun+Dodum&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <div class="sky"></div>
+    <main class="container login-page">
+      <header class="hero">
+        <h1>AIRead 학생 로그인</h1>
+        <p>이름, 학교, 반, 번호를 입력하고 내 문해력 대시보드로 이동해요.</p>
+      </header>
+
+      <section class="panel login-card">
+        <h2>로그인</h2>
+        <form id="loginForm">
+          <div class="grid-2">
+            <label>
+              이름
+              <input name="name" required placeholder="예: 김하늘" />
+            </label>
+            <label>
+              학교
+              <input name="school" required placeholder="예: 무지개초등학교" />
+            </label>
+            <label>
+              반
+              <input name="className" required placeholder="예: 3반" />
+            </label>
+            <label>
+              번호
+              <input name="studentNumber" type="number" min="1" required placeholder="예: 12" />
+            </label>
+          </div>
+          <button type="submit" class="rainbow-btn">대시보드로 이동</button>
+        </form>
+        <p id="loginHelp" class="login-status">처음 로그인하면 계정이 자동으로 만들어져요.</p>
+      </section>
+    </main>
+
+    <script src="/login.js"></script>
+  </body>
+</html>

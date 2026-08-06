@@ -1,0 +1,15 @@
+{
+  "name": "airead-literacy-service",
+  "version": "1.0.0",
+  "description": "학생 문해력 평가 서비스 (WEB-WAS-DB)",
+  "main": "WAS/server.js",
+  "scripts": {
+    "start": "node WAS/server.js",
+    "dev": "node WAS/server.js"
+  },
+  "dependencies": {
+    "better-sqlite3": "^11.7.0",
+    "cors": "^2.8.5",
+    "express": "^4.21.2"
+  }
+}
