@@ -18,13 +18,11 @@ function initDatabase() {
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       name TEXT NOT NULL,
       school TEXT NOT NULL,
+      grade INTEGER NOT NULL,
       class_name TEXT NOT NULL,
       student_number INTEGER NOT NULL,
       created_at TEXT DEFAULT CURRENT_TIMESTAMP
     );
-
-    CREATE UNIQUE INDEX IF NOT EXISTS idx_student_accounts_unique
-    ON student_accounts(name, school, class_name, student_number);
 
     CREATE TABLE IF NOT EXISTS book_reflections (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -50,18 +48,66 @@ function initDatabase() {
       FOREIGN KEY(reflection_id) REFERENCES book_reflections(id)
     );
   `);
+
+  const columns = db.prepare("PRAGMA table_info(student_accounts)").all();
+  const hasGradeColumn = columns.some((col) => col.name === "grade");
+  if (!hasGradeColumn) {
+    db.exec("ALTER TABLE student_accounts ADD COLUMN grade INTEGER NOT NULL DEFAULT 1");
+  }
+
+  // Merge legacy duplicates so one student key maps to one account consistently.
+  const duplicates = db
+    .prepare(
+      `
+      SELECT school, grade, class_name, student_number, GROUP_CONCAT(id) AS ids
+      FROM student_accounts
+      GROUP BY school, grade, class_name, student_number
+      HAVING COUNT(*) > 1
+    `
+    )
+    .all();
+
+  const moveReflections = db.prepare("UPDATE book_reflections SET student_id = ? WHERE student_id = ?");
+  const deleteStudent = db.prepare("DELETE FROM student_accounts WHERE id = ?");
+
+  const dedupeTx = db.transaction(() => {
+    for (const group of duplicates) {
+      const ids = String(group.ids)
+        .split(",")
+        .map((v) => Number(v))
+        .filter((v) => Number.isInteger(v));
+
+      if (ids.length < 2) {
+        continue;
+      }
+
+      const keepId = Math.min(...ids);
+      const removeIds = ids.filter((id) => id !== keepId);
+      for (const removeId of removeIds) {
+        moveReflections.run(keepId, removeId);
+        deleteStudent.run(removeId);
+      }
+    }
+  });
+  dedupeTx();
+
+  db.exec(`
+    DROP INDEX IF EXISTS idx_student_accounts_unique;
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_student_accounts_unique
+    ON student_accounts(school, grade, class_name, student_number);
+  `);
 }
 
 function findStudentByIdentity(identity) {
   return db
     .prepare(
       `
-      SELECT id, name, school, class_name, student_number
+      SELECT id, name, school, grade, class_name, student_number
       FROM student_accounts
-      WHERE name = ? AND school = ? AND class_name = ? AND student_number = ?
+      WHERE school = ? AND grade = ? AND class_name = ? AND student_number = ?
     `
     )
-    .get(identity.name, identity.school, identity.className, identity.studentNumber);
+    .get(identity.school, identity.grade, identity.className, identity.studentNumber);
 }
 
 function createOrGetStudentAccount(identity) {
@@ -73,16 +119,17 @@ function createOrGetStudentAccount(identity) {
   const result = db
     .prepare(
       `
-      INSERT INTO student_accounts (name, school, class_name, student_number)
-      VALUES (?, ?, ?, ?)
+      INSERT INTO student_accounts (name, school, grade, class_name, student_number)
+      VALUES (?, ?, ?, ?, ?)
     `
     )
-    .run(identity.name, identity.school, identity.className, identity.studentNumber);
+    .run(identity.name, identity.school, identity.grade, identity.className, identity.studentNumber);
 
   return {
     id: result.lastInsertRowid,
     name: identity.name,
     school: identity.school,
+    grade: identity.grade,
     class_name: identity.className,
     student_number: identity.studentNumber
   };
@@ -92,7 +139,7 @@ function getStudentById(studentId) {
   return db
     .prepare(
       `
-      SELECT id, name, school, class_name, student_number
+      SELECT id, name, school, grade, class_name, student_number
       FROM student_accounts
       WHERE id = ?
     `
@@ -159,7 +206,9 @@ function getDashboard(limit = 100, studentId = null) {
         s.id AS student_id,
         s.name,
         s.school,
+        s.grade,
         s.class_name,
+        s.student_number,
         r.id AS reflection_id,
         r.book_title,
         r.book_author,
@@ -187,7 +236,6 @@ function getDashboard(limit = 100, studentId = null) {
         .prepare(
           `
           SELECT
-            (SELECT COUNT(*) FROM student_accounts) AS student_count,
             (SELECT COUNT(*) FROM book_reflections WHERE student_id = ?) AS reflection_count,
             (
               SELECT ROUND(AVG(e.total_score), 1)
@@ -218,10 +266,80 @@ function getDashboard(limit = 100, studentId = null) {
   };
 }
 
+function getStudentReflectionDetail(studentId, reflectionId) {
+  const row = db
+    .prepare(
+      `
+      SELECT
+        s.id AS student_id,
+        s.name,
+        s.school,
+        s.grade,
+        s.class_name,
+        s.student_number,
+        r.id AS reflection_id,
+        r.book_title,
+        r.book_author,
+        r.reflection_text,
+        r.created_at AS submitted_at,
+        e.total_score,
+        e.comprehension,
+        e.inference,
+        e.critical_thinking,
+        e.expression,
+        e.vocab_grammar,
+        e.feedback_json
+      FROM book_reflections r
+      JOIN student_accounts s ON r.student_id = s.id
+      JOIN literacy_evaluations e ON e.reflection_id = r.id
+      WHERE r.id = ? AND r.student_id = ?
+      LIMIT 1
+    `
+    )
+    .get(reflectionId, studentId);
+
+  if (!row) {
+    return null;
+  }
+
+  const peerAvg = db
+    .prepare(
+      `
+      SELECT
+        COUNT(*) AS peer_count,
+        ROUND(AVG(e.comprehension), 2) AS comprehension,
+        ROUND(AVG(e.inference), 2) AS inference,
+        ROUND(AVG(e.critical_thinking), 2) AS critical_thinking,
+        ROUND(AVG(e.expression), 2) AS expression,
+        ROUND(AVG(e.vocab_grammar), 2) AS vocab_grammar
+      FROM book_reflections r
+      JOIN literacy_evaluations e ON e.reflection_id = r.id
+      WHERE r.book_title = ?
+        AND r.student_id != ?
+    `
+    )
+    .get(row.book_title, studentId);
+
+  return {
+    ...row,
+    feedback: JSON.parse(row.feedback_json || "{}"),
+    peer_average: {
+      peer_count: Number(peerAvg?.peer_count || 0),
+      comprehension: Number(peerAvg?.comprehension || 0),
+      inference: Number(peerAvg?.inference || 0),
+      critical_thinking: Number(peerAvg?.critical_thinking || 0),
+      expression: Number(peerAvg?.expression || 0),
+      vocab_grammar: Number(peerAvg?.vocab_grammar || 0)
+    }
+  };
+}
+
 module.exports = {
   initDatabase,
+  findStudentByIdentity,
   createOrGetStudentAccount,
   getStudentById,
   createSubmission,
-  getDashboard
+  getDashboard,
+  getStudentReflectionDetail
 };

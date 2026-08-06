@@ -17,12 +17,17 @@
     <main class="container login-page">
       <header class="hero">
         <h1>AIRead 학생 로그인</h1>
-        <p>이름, 학교, 반, 번호를 입력하고 내 문해력 대시보드로 이동해요.</p>
+        <p>이름, 학교, 학년, 반, 번호를 입력하고 내 문해력 대시보드로 이동해요.</p>
       </header>
 
       <section class="panel login-card">
         <h2>로그인</h2>
-        <form id="loginForm">
+        <div class="auth-tabs">
+          <button type="button" class="auth-tab active" data-auth="student">학생 로그인</button>
+          <button type="button" class="auth-tab" data-auth="teacher">교사 로그인</button>
+        </div>
+
+        <form id="studentLoginForm" class="auth-form active">
           <div class="grid-2">
             <label>
               이름
@@ -31,6 +36,10 @@
             <label>
               학교
               <input name="school" required placeholder="예: 무지개초등학교" />
+            </label>
+            <label>
+              학년
+              <input name="grade" type="number" min="1" max="6" required placeholder="예: 4" />
             </label>
             <label>
               반
@@ -43,7 +52,21 @@
           </div>
           <button type="submit" class="rainbow-btn">대시보드로 이동</button>
         </form>
-        <p id="loginHelp" class="login-status">처음 로그인하면 계정이 자동으로 만들어져요.</p>
+
+        <form id="teacherLoginForm" class="auth-form">
+          <div class="grid-2">
+            <label>
+              이름
+              <input name="teacherName" required placeholder="예: 홍길동 선생님" />
+            </label>
+            <label>
+              비밀번호
+              <input name="teacherPassword" type="password" required placeholder="0000" />
+            </label>
+          </div>
+          <button type="submit" class="rainbow-btn">교사 대시보드로 이동</button>
+        </form>
+        <p id="loginHelp" class="login-status">학생은 처음 로그인하면 계정이 자동으로 만들어져요.</p>
       </section>
     </main>
 
