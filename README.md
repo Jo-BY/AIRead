@@ -24,20 +24,23 @@
    npm start
    ```
 3. 브라우저 접속
-   - http://localhost:3000
+   - 로그인 화면: http://localhost:3000/
+   - 앱 화면: http://localhost:3000/app
 
-## GitHub Pages 접속
-- 접속 주소: https://jo-by.github.io/AIRead/
-- 루트 접속 시 `WEB/login.html`로 자동 이동합니다.
+## 배포 (WEB/WAS/DB 단일 서버)
+이 프로젝트는 Node 서버 1개에서 WEB 정적파일 + WAS API + DB(SQLite)를 함께 실행합니다.
 
-### 중요: API 서버 주소 설정
-GitHub Pages는 정적 웹만 제공하므로 WAS/DB API는 별도 서버에 배포되어 있어야 합니다.
+### GitHub 리포지토리 연동 배포 권장
+GitHub에 푸시한 뒤, Render 같은 Node 호스팅에서 같은 리포지토리를 연결해 배포하세요.
 
-1. `WEB/config.js` 파일에서 API 주소를 설정합니다.
-   ```js
-   window.AIREAD_API_BASE = "https://your-api.example.com";
-   ```
-2. API 서버에서 CORS 허용이 필요합니다.
+1. Build Command: `npm install`
+2. Start Command: `npm start`
+3. 배포 URL 접속
+   - 로그인 화면: `https://<your-service>.onrender.com/`
+   - 앱 화면: `https://<your-service>.onrender.com/app`
+
+### 주의
+- GitHub 저장소 URL(`https://github.com/...`)이나 GitHub Pages URL은 Node/SQLite 서버를 실행하지 못하므로, WEB/WAS/DB 단일 서버 구조를 그대로 호스팅할 수 없습니다.
 
 ## 평가지표 근거
 - OECD PISA Reading Literacy Framework (정보 이해, 해석, 평가)

@@ -11,7 +11,6 @@ const gnbButtons = Array.from(document.querySelectorAll(".gnb-btn"));
 
 const STUDENT_STORAGE_KEY = "airead-current-student";
 let currentStudent = null;
-const API_BASE = (window.AIREAD_API_BASE || "").replace(/\/$/, "");
 
 const indicatorNameMap = {
   comprehension: "내용 이해",
@@ -22,8 +21,7 @@ const indicatorNameMap = {
 };
 
 async function fetchJSON(url, options) {
-  const targetUrl = `${API_BASE}${url}`;
-  const response = await fetch(targetUrl, options);
+  const response = await fetch(url, options);
   if (!response.ok) {
     const err = await response.json().catch(() => ({}));
     throw new Error(err.message || "요청 중 오류가 발생했어요.");
