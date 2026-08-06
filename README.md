@@ -26,6 +26,19 @@
 3. 브라우저 접속
    - http://localhost:3000
 
+## GitHub Pages 접속
+- 접속 주소: https://jo-by.github.io/AIRead/
+- 루트 접속 시 `WEB/login.html`로 자동 이동합니다.
+
+### 중요: API 서버 주소 설정
+GitHub Pages는 정적 웹만 제공하므로 WAS/DB API는 별도 서버에 배포되어 있어야 합니다.
+
+1. `WEB/config.js` 파일에서 API 주소를 설정합니다.
+   ```js
+   window.AIREAD_API_BASE = "https://your-api.example.com";
+   ```
+2. API 서버에서 CORS 허용이 필요합니다.
+
 ## 평가지표 근거
 - OECD PISA Reading Literacy Framework (정보 이해, 해석, 평가)
 - NAEP Reading Framework (이해와 분석적 읽기)
