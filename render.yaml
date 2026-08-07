@@ -1,16 +1,51 @@
 services:
   - type: web
-    name: airead
+    name: airead-web
+    runtime: static
+    plan: free
+    buildCommand: |
+      printf "window.AIREAD_API_BASE = \"%s\";\n" "${AIREAD_API_BASE}" > WEB/config.js
+    staticPublishPath: WEB
+    routes:
+      - type: rewrite
+        source: /
+        destination: /login.html
+      - type: rewrite
+        source: /app
+        destination: /index.html
+    autoDeploy: true
+    envVars:
+      - key: AIREAD_API_BASE
+        sync: false
+
+  - type: web
+    name: airead-was
     runtime: node
     plan: free
     buildCommand: npm install
-    startCommand: npm start
+    startCommand: node WAS/server.js
     healthCheckPath: /api/health
     autoDeploy: true
     envVars:
       - key: NODE_ENV
         value: production
-      - key: DB_DIR
-        value: /tmp/airead-data
+      - key: DB_SERVICE_URL
+        value: http://airead-db:10000
       - key: TEACHER_PASSWORD
-        generateValue: true
+        sync: false
+
+  - type: pserv
+    name: airead-db
+    runtime: node
+    plan: free
+    buildCommand: npm install
+    startCommand: node DB/server.js
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: DB_DIR
+        value: /var/data
+    disk:
+      name: airead-db-data
+      mountPath: /var/data
+      sizeGB: 1

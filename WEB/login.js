@@ -4,9 +4,23 @@ const loginHelp = document.getElementById("loginHelp");
 const authTabs = Array.from(document.querySelectorAll(".auth-tab"));
 
 const SESSION_STORAGE_KEY = "airead-auth-session";
+const API_BASE = String(window.AIREAD_API_BASE || "").replace(/\/+$/, "");
+
+function buildApiUrl(url) {
+  if (typeof url !== "string") {
+    return url;
+  }
+  if (/^https?:\/\//i.test(url)) {
+    return url;
+  }
+  if (url.startsWith("/")) {
+    return `${API_BASE}${url}`;
+  }
+  return url;
+}
 
 async function fetchJSON(url, options) {
-  const response = await fetch(url, options);
+  const response = await fetch(buildApiUrl(url), options);
   if (!response.ok) {
     const err = await response.json().catch(() => ({}));
     throw new Error(err.message || "요청 중 오류가 발생했어요.");

@@ -1,14 +1,12 @@
-const path = require("path");
 const express = require("express");
 const cors = require("cors");
 const {
-  initDatabase,
-  findStudentByIdentity,
+  createOrGetStudentAccount,
   getStudentById,
   createSubmission,
   getDashboard,
   getStudentReflectionDetail
-} = require("../DB/database");
+} = require("./services/dbClient");
 const { INDICATORS, evaluateReflection } = require("./services/evaluator");
 
 const app = express();
@@ -228,19 +226,13 @@ function normalizeClassName(value) {
   return raw;
 }
 
-initDatabase();
-
 app.use(cors({ origin: true }));
 app.use(express.json({ limit: "1mb" }));
-app.use(express.static(path.join(__dirname, "..", "WEB")));
 
-app.get("/", (req, res) => {
-  res.sendFile(path.join(__dirname, "..", "WEB", "login.html"));
-});
-
-app.get("/app", (req, res) => {
-  res.sendFile(path.join(__dirname, "..", "WEB", "index.html"));
-});
+function sendUpstreamError(res, error) {
+  const status = Number(error?.status) || 502;
+  return res.status(status).json({ message: error?.message || "DB 서비스 요청 중 오류가 발생했습니다." });
+}
 
 app.get("/api/health", (req, res) => {
   res.json({ ok: true, service: "AIRead literacy service" });
@@ -250,7 +242,7 @@ app.get("/api/indicators", (req, res) => {
   res.json({ indicators: INDICATORS });
 });
 
-app.post("/api/auth/login", (req, res) => {
+app.post("/api/auth/login", async (req, res) => {
   const { name, school, grade, className, studentNumber } = req.body || {};
 
   if (!name || !school || !grade || !className || !studentNumber) {
@@ -267,18 +259,17 @@ app.post("/api/auth/login", (req, res) => {
     return res.status(400).json({ message: "번호는 1 이상의 숫자로 입력해 주세요." });
   }
 
-  const student = findStudentByIdentity({
-    name: String(name).trim(),
-    school: String(school).trim(),
-    grade: parsedGrade,
-    className: normalizeClassName(className),
-    studentNumber: parsedNumber
-  });
-
-  if (!student) {
-    return res.status(404).json({
-      message: "등록된 학생 정보를 찾을 수 없습니다. 이름/학교/학년/반/번호를 확인해 주세요."
+  let student;
+  try {
+    student = await createOrGetStudentAccount({
+      name: String(name).trim(),
+      school: String(school).trim(),
+      grade: parsedGrade,
+      className: normalizeClassName(className),
+      studentNumber: parsedNumber
     });
+  } catch (error) {
+    return sendUpstreamError(res, error);
   }
 
   return res.json({
@@ -325,7 +316,7 @@ app.post("/api/evaluate", (req, res) => {
   return res.json(result);
 });
 
-app.post("/api/submissions", (req, res) => {
+app.post("/api/submissions", async (req, res) => {
   const { studentId, reflection } = req.body || {};
 
   if (!studentId || !reflection) {
@@ -337,7 +328,16 @@ app.post("/api/submissions", (req, res) => {
     return res.status(400).json({ message: "유효하지 않은 학생 계정입니다." });
   }
 
-  const student = getStudentById(parsedStudentId);
+  let student;
+  try {
+    student = await getStudentById(parsedStudentId);
+  } catch (error) {
+    if (Number(error?.status) === 404) {
+      return res.status(404).json({ message: "학생 계정을 찾을 수 없습니다. 다시 로그인해 주세요." });
+    }
+    return sendUpstreamError(res, error);
+  }
+
   if (!student) {
     return res.status(404).json({ message: "학생 계정을 찾을 수 없습니다. 다시 로그인해 주세요." });
   }
@@ -351,7 +351,12 @@ app.post("/api/submissions", (req, res) => {
   }
 
   const evaluation = evaluateReflection(reflection.reflectionText);
-  const ids = createSubmission(parsedStudentId, reflection, evaluation);
+  let ids;
+  try {
+    ids = await createSubmission(parsedStudentId, reflection, evaluation);
+  } catch (error) {
+    return sendUpstreamError(res, error);
+  }
 
   return res.status(201).json({
     message: "저장 및 평가가 완료되었습니다.",
@@ -368,20 +373,30 @@ app.post("/api/submissions", (req, res) => {
   });
 });
 
-app.get("/api/my-dashboard", (req, res) => {
+app.get("/api/my-dashboard", async (req, res) => {
   const studentId = Number(req.query.studentId);
   if (!Number.isInteger(studentId) || studentId <= 0) {
     return res.status(400).json({ message: "studentId가 필요합니다." });
   }
 
-  const student = getStudentById(studentId);
-  if (!student) {
-    return res.status(404).json({ message: "학생 계정을 찾을 수 없습니다." });
+  let student;
+  try {
+    student = await getStudentById(studentId);
+  } catch (error) {
+    if (Number(error?.status) === 404) {
+      return res.status(404).json({ message: "학생 계정을 찾을 수 없습니다." });
+    }
+    return sendUpstreamError(res, error);
   }
 
   const limit = Number(req.query.limit || 100);
   const safeLimit = Number.isFinite(limit) ? Math.min(Math.max(limit, 1), 300) : 100;
-  const dashboard = getDashboard(safeLimit, studentId);
+  let dashboard;
+  try {
+    dashboard = await getDashboard(safeLimit, studentId);
+  } catch (error) {
+    return sendUpstreamError(res, error);
+  }
 
   return res.json({
     student: {
@@ -396,7 +411,7 @@ app.get("/api/my-dashboard", (req, res) => {
   });
 });
 
-app.get("/api/my-reflection-detail", (req, res) => {
+app.get("/api/my-reflection-detail", async (req, res) => {
   const studentId = Number(req.query.studentId);
   const reflectionId = Number(req.query.reflectionId);
 
@@ -408,48 +423,72 @@ app.get("/api/my-reflection-detail", (req, res) => {
     return res.status(400).json({ message: "reflectionId가 필요합니다." });
   }
 
-  const student = getStudentById(studentId);
-  if (!student) {
-    return res.status(404).json({ message: "학생 계정을 찾을 수 없습니다." });
+  try {
+    await getStudentById(studentId);
+  } catch (error) {
+    if (Number(error?.status) === 404) {
+      return res.status(404).json({ message: "학생 계정을 찾을 수 없습니다." });
+    }
+    return sendUpstreamError(res, error);
   }
 
-  const detail = getStudentReflectionDetail(studentId, reflectionId);
-  if (!detail) {
-    return res.status(404).json({ message: "해당 독서 기록을 찾을 수 없습니다." });
+  let detail;
+  try {
+    detail = await getStudentReflectionDetail(studentId, reflectionId);
+  } catch (error) {
+    if (Number(error?.status) === 404) {
+      return res.status(404).json({ message: "해당 독서 기록을 찾을 수 없습니다." });
+    }
+    return sendUpstreamError(res, error);
   }
 
   return res.json({ detail });
 });
 
-app.get("/api/my-ai-diagnosis", (req, res) => {
+app.get("/api/my-ai-diagnosis", async (req, res) => {
   const studentId = Number(req.query.studentId);
 
   if (!Number.isInteger(studentId) || studentId <= 0) {
     return res.status(400).json({ message: "studentId가 필요합니다." });
   }
 
-  const student = getStudentById(studentId);
-  if (!student) {
-    return res.status(404).json({ message: "학생 계정을 찾을 수 없습니다." });
+  let student;
+  try {
+    student = await getStudentById(studentId);
+  } catch (error) {
+    if (Number(error?.status) === 404) {
+      return res.status(404).json({ message: "학생 계정을 찾을 수 없습니다." });
+    }
+    return sendUpstreamError(res, error);
   }
 
-  const dashboard = getDashboard(300, studentId);
+  let dashboard;
+  try {
+    dashboard = await getDashboard(300, studentId);
+  } catch (error) {
+    return sendUpstreamError(res, error);
+  }
+
   const result = buildStudentDiagnosis(student, dashboard.rows || []);
   return res.json(result);
 });
 
-app.get("/api/dashboard", (req, res) => {
+app.get("/api/dashboard", async (req, res) => {
   const limit = Number(req.query.limit || 100);
   const safeLimit = Number.isFinite(limit) ? Math.min(Math.max(limit, 1), 300) : 100;
 
-  const dashboard = getDashboard(safeLimit);
+  let dashboard;
+  try {
+    dashboard = await getDashboard(safeLimit);
+  } catch (error) {
+    return sendUpstreamError(res, error);
+  }
+
   return res.json(dashboard);
 });
 
 app.listen(PORT, () => {
   console.log(`AIRead server running on http://localhost:${PORT}`);
   console.log(`Environment: ${process.env.NODE_ENV || "development"}`);
-  if (process.env.DB_PATH || process.env.DB_DIR) {
-    console.log("Custom DB path configuration is enabled.");
-  }
+  console.log(`DB service: ${(process.env.DB_SERVICE_URL || "http://localhost:10000").replace(/\/+$/, "")}`);
 });

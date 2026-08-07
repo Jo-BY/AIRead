@@ -5,7 +5,9 @@
   "main": "WAS/server.js",
   "scripts": {
     "start": "node WAS/server.js",
-    "dev": "node WAS/server.js"
+    "dev": "node WAS/server.js",
+    "start:was": "node WAS/server.js",
+    "start:db": "node DB/server.js"
   },
   "dependencies": {
     "better-sqlite3": "^11.7.0",

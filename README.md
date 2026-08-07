@@ -14,20 +14,24 @@
 - 학생, 글, 평가 결과를 대시보드에서 조회
 - 평가 결과를 DB에 저장
 
-## 실행 방법
+## 실행 방법 (로컬)
 1. 의존성 설치
    ```bash
    npm install
    ```
-2. 서버 실행
+2. DB 서버 실행
    ```bash
-   npm start
+   npm run start:db
    ```
-3. 브라우저 접속
-   - 로그인 화면: http://localhost:3000/
-   - 앱 화면: http://localhost:3000/app
+3. WAS 서버 실행 (별도 터미널)
+   ```bash
+   npm run start:was
+   ```
+4. WEB 접속
+   - WAS를 통해 접속: http://localhost:3000/
+   - 또는 `WEB/login.html`을 브라우저로 열고 `WEB/config.js`에서 API 주소를 설정
 
-## GitHub + Render로 외부 테스트하기
+## GitHub + Render로 외부 테스트하기 (WEB/WAS/DB 3서버)
 GitHub URL 자체는 코드 저장소 페이지이며, 앱 테스트는 Render 배포 URL에서 진행합니다.
 
 ### 1) GitHub에 최신 코드 반영
@@ -42,18 +46,22 @@ GitHub URL 자체는 코드 저장소 페이지이며, 앱 테스트는 Render �
 ### 2) Render에서 배포 생성
 1. Render 대시보드에서 New + -> Blueprint 선택
 2. GitHub 저장소 연결 후 배포
-3. 저장소의 render.yaml을 읽어 자동으로 Web Service + Persistent Disk 생성
+3. 저장소의 `render.yaml`을 읽어 아래 3개 서비스를 자동 생성
+   - `airead-web` (정적 WEB)
+   - `airead-was` (Node API)
+   - `airead-db` (Private DB API + Persistent Disk)
 
-### 3) Render 환경변수 확인
-- NODE_ENV: production
-- DB_DIR: /tmp/airead-data
-- TEACHER_PASSWORD: Render가 자동 생성
+### 3) Render 환경변수 설정
+- `airead-was`
+   - `TEACHER_PASSWORD`: 교사용 비밀번호
+   - `DB_SERVICE_URL`: `http://airead-db:10000` (기본값)
+- `airead-web`
+   - `AIREAD_API_BASE`: `https://airead-was.onrender.com` (실제 WAS URL로 설정)
 
 ### 4) 배포 완료 후 외부 접속
-- 서비스 URL 예시: https://airead.onrender.com
-- 로그인 화면: https://airead.onrender.com/
-- 앱 화면: https://airead.onrender.com/app
-- 상태 확인: https://airead.onrender.com/api/health
+- 로그인 화면: `https://airead-web.onrender.com/`
+- 앱 화면: `https://airead-web.onrender.com/app`
+- WAS 상태 확인: `https://airead-was.onrender.com/api/health`
 
 ### 5) 테스트 체크리스트
 1. 학생 로그인 가능 여부
@@ -63,23 +71,17 @@ GitHub URL 자체는 코드 저장소 페이지이며, 앱 테스트는 Render �
 
 ### 참고
 - Render free 플랜은 슬립이 발생할 수 있어 첫 요청 시 지연될 수 있습니다.
-- Render free 플랜은 Persistent Disk를 지원하지 않아 DB가 재배포/재시작 시 초기화될 수 있습니다.
-- 데이터 영구 저장이 필요하면 유료 플랜(디스크 사용)으로 변경하거나 외부 DB(PostgreSQL 등)를 사용하세요.
+- SQLite 영구 저장은 `airead-db`에 연결한 Persistent Disk에 저장됩니다.
+- `airead-db`는 Private Service이므로 외부에서 직접 접근하지 않고 `airead-was`만 접근합니다.
 
-## 배포 (WEB/WAS/DB 단일 서버)
-이 프로젝트는 Node 서버 1개에서 WEB 정적파일 + WAS API + DB(SQLite)를 함께 실행합니다.
+## 배포 요약
+이 프로젝트는 Render에서 `WEB(정적) + WAS(API) + DB(내부)` 3서비스 구조로 배포됩니다.
 
 ### GitHub 리포지토리 연동 배포 권장
-GitHub에 푸시한 뒤, Render 같은 Node 호스팅에서 같은 리포지토리를 연결해 배포하세요.
-
-1. Build Command: `npm install`
-2. Start Command: `npm start`
-3. 배포 URL 접속
-   - 로그인 화면: `https://<your-service>.onrender.com/`
-   - 앱 화면: `https://<your-service>.onrender.com/app`
+GitHub에 푸시한 뒤, Render Blueprint로 같은 리포지토리를 연결해 `render.yaml` 기준으로 배포하세요.
 
 ### 주의
-- GitHub 저장소 URL(`https://github.com/...`)이나 GitHub Pages URL은 Node/SQLite 서버를 실행하지 못하므로, WEB/WAS/DB 단일 서버 구조를 그대로 호스팅할 수 없습니다.
+- GitHub 저장소 URL(`https://github.com/...`)이나 GitHub Pages URL은 WAS/DB 서버를 실행하지 못하므로 실제 동작 테스트는 Render 배포 URL에서 진행해야 합니다.
 
 ## 평가지표 근거
 - OECD PISA Reading Literacy Framework (정보 이해, 해석, 평가)

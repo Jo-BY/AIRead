@@ -53,6 +53,7 @@ const teacherDetailBodyEl = document.getElementById("teacherDetailBody");
 const gnbButtons = Array.from(document.querySelectorAll(".gnb-btn"));
 
 const SESSION_STORAGE_KEY = "airead-auth-session";
+const API_BASE = String(window.AIREAD_API_BASE || "").replace(/\/+$/, "");
 let currentSession = null;
 let teacherGroupedRows = [];
 let teacherFilteredRows = [];
@@ -90,8 +91,21 @@ const timelineIndicatorConfig = [
 const SVG_NS = "http://www.w3.org/2000/svg";
 let aiDiagnosisLoaded = false;
 
+function buildApiUrl(url) {
+  if (typeof url !== "string") {
+    return url;
+  }
+  if (/^https?:\/\//i.test(url)) {
+    return url;
+  }
+  if (url.startsWith("/")) {
+    return `${API_BASE}${url}`;
+  }
+  return url;
+}
+
 async function fetchJSON(url, options) {
-  const response = await fetch(url, options);
+  const response = await fetch(buildApiUrl(url), options);
   if (!response.ok) {
     const err = await response.json().catch(() => ({}));
     throw new Error(err.message || "요청 중 오류가 발생했어요.");
