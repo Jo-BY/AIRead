@@ -46,7 +46,7 @@ GitHub URL 자체는 코드 저장소 페이지이며, 앱 테스트는 Render �
 
 ### 3) Render 환경변수 확인
 - NODE_ENV: production
-- DB_DIR: /var/data
+- DB_DIR: /tmp/airead-data
 - TEACHER_PASSWORD: Render가 자동 생성
 
 ### 4) 배포 완료 후 외부 접속
@@ -63,7 +63,8 @@ GitHub URL 자체는 코드 저장소 페이지이며, 앱 테스트는 Render �
 
 ### 참고
 - Render free 플랜은 슬립이 발생할 수 있어 첫 요청 시 지연될 수 있습니다.
-- DB_DIR를 /var/data로 설정했기 때문에 배포 재시작 이후에도 SQLite 데이터가 유지됩니다.
+- Render free 플랜은 Persistent Disk를 지원하지 않아 DB가 재배포/재시작 시 초기화될 수 있습니다.
+- 데이터 영구 저장이 필요하면 유료 플랜(디스크 사용)으로 변경하거나 외부 DB(PostgreSQL 등)를 사용하세요.
 
 ## 배포 (WEB/WAS/DB 단일 서버)
 이 프로젝트는 Node 서버 1개에서 WEB 정적파일 + WAS API + DB(SQLite)를 함께 실행합니다.
