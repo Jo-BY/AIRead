@@ -7,6 +7,24 @@ const indicatorListEl = document.getElementById("indicatorList");
 const dashboardBodyEl = document.getElementById("dashboardBody");
 const statsEl = document.getElementById("stats");
 const refreshButton = document.getElementById("refreshButton");
+const timelineRefreshButton = document.getElementById("timelineRefreshButton");
+const timelineSummaryEl = document.getElementById("timelineSummary");
+const timelineEmptyEl = document.getElementById("timelineEmpty");
+const timelineChartGroupEl = document.getElementById("timelineChartGroup");
+const timelineTotalChartEl = document.getElementById("timelineTotalChart");
+const timelineIndicatorChartEl = document.getElementById("timelineIndicatorChart");
+const timelineIndicatorLegendEl = document.getElementById("timelineIndicatorLegend");
+const aiDiagnosisRefreshButton = document.getElementById("aiDiagnosisRefreshButton");
+const aiDiagnosisMetaEl = document.getElementById("aiDiagnosisMeta");
+const aiDiagnosisEmptyEl = document.getElementById("aiDiagnosisEmpty");
+const aiDiagnosisPanelEl = document.getElementById("aiDiagnosisPanel");
+const aiDiagnosisHeadlineEl = document.getElementById("aiDiagnosisHeadline");
+const aiDiagnosisOverviewEl = document.getElementById("aiDiagnosisOverview");
+const aiDiagnosisTimelineListEl = document.getElementById("aiDiagnosisTimelineList");
+const aiDiagnosisIndicatorListEl = document.getElementById("aiDiagnosisIndicatorList");
+const aiTextbookListEl = document.getElementById("aiTextbookList");
+const aiBookListEl = document.getElementById("aiBookList");
+const aiActionPlanListEl = document.getElementById("aiActionPlanList");
 const studentDetailModalEl = document.getElementById("studentDetailModal");
 const studentDetailCloseButton = document.getElementById("studentDetailCloseButton");
 const studentDetailTitleEl = document.getElementById("studentDetailTitle");
@@ -60,6 +78,17 @@ const radarIndicators = [
   { key: "expression", scoreKey: "expression", feedbackKey: "expression", label: "표현" },
   { key: "vocab_grammar", scoreKey: "vocab_grammar", feedbackKey: "vocabGrammar", label: "어휘" }
 ];
+
+const timelineIndicatorConfig = [
+  { key: "comprehension", label: "내용이해", color: "#1d8f6a" },
+  { key: "inference", label: "추론", color: "#1982c4" },
+  { key: "critical_thinking", label: "비판", color: "#6a4c93" },
+  { key: "expression", label: "표현", color: "#ff7b00" },
+  { key: "vocab_grammar", label: "어휘", color: "#c9184a" }
+];
+
+const SVG_NS = "http://www.w3.org/2000/svg";
+let aiDiagnosisLoaded = false;
 
 async function fetchJSON(url, options) {
   const response = await fetch(url, options);
@@ -377,6 +406,365 @@ function toRadarPoints(values, cx, cy, radius) {
     .join(" ");
 }
 
+function createSvgElement(tag, attrs = {}) {
+  const el = document.createElementNS(SVG_NS, tag);
+  Object.entries(attrs).forEach(([key, value]) => {
+    el.setAttribute(key, String(value));
+  });
+  return el;
+}
+
+function formatTimelineDateLabel(value) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return "-";
+  }
+
+  const month = date.getMonth() + 1;
+  const day = date.getDate();
+  return `${month}.${day}`;
+}
+
+function normalizeTotalScoreTo100(score) {
+  const numeric = Number(score || 0);
+  if (!Number.isFinite(numeric)) {
+    return 0;
+  }
+
+  // Support both legacy 25-point totals and already-normalized 100-point totals.
+  if (numeric <= 25) {
+    return (numeric / 25) * 100;
+  }
+
+  return numeric;
+}
+
+function getTimelineChartGeometry(totalPoints, width, height) {
+  const left = 58;
+  const right = 20;
+  const top = 18;
+  const bottom = 40;
+  const usableWidth = width - left - right;
+  const usableHeight = height - top - bottom;
+  const step = totalPoints > 1 ? usableWidth / (totalPoints - 1) : 0;
+
+  const xForIndex = (index) => {
+    if (totalPoints === 1) {
+      return left + usableWidth / 2;
+    }
+    return left + index * step;
+  };
+
+  const yForValue = (value, maxValue) => {
+    const ratio = maxValue > 0 ? Number(value) / maxValue : 0;
+    return top + usableHeight - ratio * usableHeight;
+  };
+
+  return {
+    left,
+    right,
+    top,
+    bottom,
+    usableWidth,
+    usableHeight,
+    xForIndex,
+    yForValue
+  };
+}
+
+function drawTimelineAxes(svg, geometry, maxValue, tickCount, rows) {
+  const { left, top, usableHeight, xForIndex, yForValue } = geometry;
+  const chartBottom = top + usableHeight;
+
+  for (let tick = 0; tick <= tickCount; tick += 1) {
+    const value = (maxValue / tickCount) * tick;
+    const y = yForValue(value, maxValue);
+
+    const grid = createSvgElement("line", {
+      x1: left,
+      y1: y.toFixed(2),
+      x2: (left + geometry.usableWidth).toFixed(2),
+      y2: y.toFixed(2),
+      stroke: "#deebf8",
+      "stroke-width": 1
+    });
+    svg.appendChild(grid);
+
+    const label = createSvgElement("text", {
+      x: left - 10,
+      y: (y + 4).toFixed(2),
+      "text-anchor": "end",
+      "font-size": 12,
+      "font-weight": 700,
+      fill: "#43607e"
+    });
+    label.textContent = value.toFixed(value % 1 === 0 ? 0 : 1);
+    svg.appendChild(label);
+  }
+
+  const axisX = createSvgElement("line", {
+    x1: left,
+    y1: chartBottom,
+    x2: left + geometry.usableWidth,
+    y2: chartBottom,
+    stroke: "#7f9bbb",
+    "stroke-width": 1.5
+  });
+  svg.appendChild(axisX);
+
+  if (!rows.length) {
+    return;
+  }
+
+  const maxLabels = 7;
+  const skip = Math.max(1, Math.ceil(rows.length / maxLabels));
+
+  rows.forEach((row, idx) => {
+    if (idx % skip !== 0 && idx !== rows.length - 1) {
+      return;
+    }
+
+    const x = xForIndex(idx);
+    const tick = createSvgElement("line", {
+      x1: x.toFixed(2),
+      y1: chartBottom,
+      x2: x.toFixed(2),
+      y2: chartBottom + 6,
+      stroke: "#7f9bbb",
+      "stroke-width": 1.3
+    });
+    svg.appendChild(tick);
+
+    const label = createSvgElement("text", {
+      x: x.toFixed(2),
+      y: chartBottom + 20,
+      "text-anchor": "middle",
+      "font-size": 11,
+      "font-weight": 700,
+      fill: "#466382"
+    });
+    label.textContent = formatTimelineDateLabel(row.submitted_at);
+    svg.appendChild(label);
+  });
+}
+
+function drawTimelineSeries(svg, geometry, rows, options) {
+  const { xForIndex, yForValue } = geometry;
+  const maxValue = options.maxValue;
+
+  if (!rows.length) {
+    return;
+  }
+
+  const points = rows.map((row, idx) => {
+    const rawValue = Number(options.valueGetter(row) || 0);
+    const value = Math.max(0, Math.min(maxValue, rawValue));
+    return {
+      row,
+      rawValue,
+      value,
+      x: xForIndex(idx),
+      y: yForValue(value, maxValue)
+    };
+  });
+
+  const pathData = points
+    .map((point, idx) => `${idx === 0 ? "M" : "L"}${point.x.toFixed(2)},${point.y.toFixed(2)}`)
+    .join(" ");
+
+  if (options.fillColor) {
+    const baseY = yForValue(0, maxValue);
+    const areaPath = `${pathData} L${points[points.length - 1].x.toFixed(2)},${baseY.toFixed(2)} L${points[0].x.toFixed(2)},${baseY.toFixed(2)} Z`;
+    const area = createSvgElement("path", {
+      d: areaPath,
+      fill: options.fillColor,
+      stroke: "none"
+    });
+    svg.appendChild(area);
+  }
+
+  const line = createSvgElement("path", {
+    d: pathData,
+    fill: "none",
+    stroke: options.color,
+    "stroke-width": options.strokeWidth || 2.4,
+    "stroke-linejoin": "round",
+    "stroke-linecap": "round"
+  });
+  svg.appendChild(line);
+
+  points.forEach((point) => {
+    const dot = createSvgElement("circle", {
+      cx: point.x.toFixed(2),
+      cy: point.y.toFixed(2),
+      r: options.dotRadius || 3.8,
+      fill: "#ffffff",
+      stroke: options.color,
+      "stroke-width": 2
+    });
+
+    const title = createSvgElement("title");
+    title.textContent = `${new Date(point.row.submitted_at).toLocaleString("ko-KR")} · ${point.row.book_title || "책 제목 없음"} · ${options.tooltipLabel}: ${point.rawValue.toFixed(1)}`;
+    dot.appendChild(title);
+    svg.appendChild(dot);
+
+    if (options.showPointLabels) {
+      const pointLabel = createSvgElement("text", {
+        x: point.x.toFixed(2),
+        y: (point.y - 10).toFixed(2),
+        "text-anchor": "middle",
+        "font-size": 11,
+        "font-weight": 700,
+        fill: options.color
+      });
+      const formatter = options.pointLabelFormatter || ((v) => v.toFixed(0));
+      pointLabel.textContent = formatter(point.rawValue);
+      svg.appendChild(pointLabel);
+    }
+  });
+}
+
+function renderTimelineLegend() {
+  timelineIndicatorLegendEl.innerHTML = "";
+
+  timelineIndicatorConfig.forEach((item) => {
+    const legendItem = document.createElement("span");
+    legendItem.className = "timeline-legend-item";
+    legendItem.innerHTML = `<span class="timeline-legend-dot" style="background:${item.color}"></span>${item.label}`;
+    timelineIndicatorLegendEl.appendChild(legendItem);
+  });
+}
+
+function renderSimpleList(listEl, items) {
+  listEl.innerHTML = "";
+  if (!items || !items.length) {
+    const li = document.createElement("li");
+    li.textContent = "추천/진단 데이터가 아직 충분하지 않습니다.";
+    listEl.appendChild(li);
+    return;
+  }
+
+  items.forEach((text) => {
+    const li = document.createElement("li");
+    li.textContent = text;
+    listEl.appendChild(li);
+  });
+}
+
+function renderRecommendationList(listEl, items, type) {
+  listEl.innerHTML = "";
+  if (!items || !items.length) {
+    const li = document.createElement("li");
+    li.textContent = "추천 데이터가 아직 충분하지 않습니다.";
+    listEl.appendChild(li);
+    return;
+  }
+
+  items.forEach((item) => {
+    const li = document.createElement("li");
+    if (type === "book") {
+      li.innerHTML = `<strong>${item.title}</strong> · ${item.author || "저자 미상"}<br/><span>${item.reason || ""}${item.level ? ` (${item.level})` : ""}</span>`;
+    } else {
+      li.innerHTML = `<strong>${item.title}</strong><br/><span>${item.reason || ""}</span>`;
+    }
+    listEl.appendChild(li);
+  });
+}
+
+function renderAiDiagnosis(result) {
+  const meta = result.meta || {};
+  const diagnosis = result.diagnosis || {};
+  const recommendations = result.recommendations || {};
+
+  aiDiagnosisMetaEl.textContent = `${meta.school || "-"} ${meta.grade || "-"}학년 ${meta.className || "-"} · 분석 기록 ${meta.attemptCount || 0}건`;
+
+  const hasData = Number(meta.attemptCount || 0) > 0;
+  aiDiagnosisEmptyEl.hidden = hasData;
+  aiDiagnosisPanelEl.hidden = !hasData;
+
+  aiDiagnosisHeadlineEl.textContent = diagnosis.headline || "AI 진단 결과";
+  aiDiagnosisOverviewEl.textContent = diagnosis.overview || "";
+
+  renderSimpleList(aiDiagnosisTimelineListEl, diagnosis.timelineInsights || []);
+  renderSimpleList(aiDiagnosisIndicatorListEl, diagnosis.indicatorInsights || []);
+  renderSimpleList(aiActionPlanListEl, diagnosis.actionPlan || []);
+  renderRecommendationList(aiTextbookListEl, recommendations.textbooks || [], "textbook");
+  renderRecommendationList(aiBookListEl, recommendations.books || [], "book");
+}
+
+async function loadAiDiagnosis(forceRefresh = false) {
+  if (getActiveRole() !== "student") {
+    return;
+  }
+
+  if (aiDiagnosisLoaded && !forceRefresh) {
+    return;
+  }
+
+  const currentStudent = getCurrentStudent();
+  const result = await fetchJSON(`/api/my-ai-diagnosis?studentId=${currentStudent.id}`);
+  renderAiDiagnosis(result);
+  aiDiagnosisLoaded = true;
+}
+
+function renderTimelineCharts(rows) {
+  const sortedRows = [...rows].sort((a, b) => new Date(a.submitted_at).getTime() - new Date(b.submitted_at).getTime());
+  const count = sortedRows.length;
+
+  timelineTotalChartEl.innerHTML = "";
+  timelineIndicatorChartEl.innerHTML = "";
+  timelineIndicatorLegendEl.innerHTML = "";
+
+  if (!count) {
+    timelineSummaryEl.textContent = "내 평가 기록이 아직 없어요.";
+    timelineEmptyEl.hidden = false;
+    timelineChartGroupEl.hidden = true;
+    return;
+  }
+
+  timelineEmptyEl.hidden = true;
+  timelineChartGroupEl.hidden = false;
+
+  const latest = sortedRows[count - 1];
+  const latestScore = normalizeTotalScoreTo100(latest.total_score);
+  const highest = sortedRows.reduce((max, row) => Math.max(max, normalizeTotalScoreTo100(row.total_score)), 0);
+  timelineSummaryEl.textContent = `총 ${count}건의 평가 기록이 있습니다. 최근 총점 ${latestScore.toFixed(1)}점, 최고 총점 ${highest.toFixed(1)}점입니다.`;
+
+  const totalWidth = 920;
+  const totalHeight = 280;
+  const totalGeometry = getTimelineChartGeometry(count, totalWidth, totalHeight);
+  drawTimelineAxes(timelineTotalChartEl, totalGeometry, 100, 5, sortedRows);
+  drawTimelineSeries(timelineTotalChartEl, totalGeometry, sortedRows, {
+    maxValue: 100,
+    valueGetter: (row) => normalizeTotalScoreTo100(row.total_score),
+    color: "#ff6b35",
+    fillColor: "rgba(255, 160, 90, 0.2)",
+    strokeWidth: 3,
+    dotRadius: 4.2,
+    tooltipLabel: "총점",
+    showPointLabels: true,
+    pointLabelFormatter: (value) => `${value.toFixed(0)}점`
+  });
+
+  const indicatorWidth = 920;
+  const indicatorHeight = 320;
+  const indicatorGeometry = getTimelineChartGeometry(count, indicatorWidth, indicatorHeight);
+  drawTimelineAxes(timelineIndicatorChartEl, indicatorGeometry, 5, 5, sortedRows);
+
+  timelineIndicatorConfig.forEach((indicator) => {
+    drawTimelineSeries(timelineIndicatorChartEl, indicatorGeometry, sortedRows, {
+      maxValue: 5,
+      valueGetter: (row) => row[indicator.key],
+      color: indicator.color,
+      strokeWidth: 2.2,
+      dotRadius: 3.5,
+      tooltipLabel: indicator.label
+    });
+  });
+
+  renderTimelineLegend();
+}
+
 function renderStudentRadarChart(selfScores, peerScores, peerCount) {
   const svg = studentRadarChartEl;
   const cx = 170;
@@ -616,6 +1004,14 @@ form.addEventListener("submit", async (event) => {
 });
 
 refreshButton.addEventListener("click", loadMyDashboard);
+timelineRefreshButton.addEventListener("click", loadMyDashboard);
+aiDiagnosisRefreshButton.addEventListener("click", async () => {
+  try {
+    await loadAiDiagnosis(true);
+  } catch (error) {
+    alert(error.message);
+  }
+});
 teacherRefreshButton.addEventListener("click", loadAllDashboard);
 teacherSearchInput.addEventListener("input", applyTeacherFiltersAndRender);
 teacherGradeFilter.addEventListener("change", () => {
@@ -693,8 +1089,15 @@ document.addEventListener("keydown", (event) => {
 });
 
 gnbButtons.forEach((button) => {
-  button.addEventListener("click", () => {
+  button.addEventListener("click", async () => {
     activateView(button.dataset.view);
+    if (button.dataset.view === "ai-diagnosis") {
+      try {
+        await loadAiDiagnosis();
+      } catch (error) {
+        alert(error.message);
+      }
+    }
   });
 });
 
@@ -751,6 +1154,7 @@ function renderEvaluation(evaluation) {
 function renderDashboard(data) {
   dashboardBodyEl.innerHTML = "";
   myDashboardRows = data.rows || [];
+  renderTimelineCharts(myDashboardRows);
 
   const reflectionCount = data.stats.reflection_count || 0;
   const avgScore = data.stats.avg_score || 0;

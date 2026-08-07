@@ -348,6 +348,119 @@ body.role-teacher .teacher-only {
   overflow-x: auto;
 }
 
+.timeline-summary {
+  margin: 4px 0 12px;
+  font-weight: 700;
+  color: #2f4d6c;
+}
+
+.timeline-empty {
+  border: 2px dashed #9ec5e8;
+  background: #f2f9ff;
+  border-radius: 14px;
+  padding: 14px;
+  font-weight: 700;
+  color: #355070;
+}
+
+.timeline-chart-group {
+  display: grid;
+  gap: 12px;
+}
+
+.timeline-chart-card {
+  border: 2px solid #d7e2f1;
+  border-radius: 14px;
+  padding: 12px;
+  background: #fbfdff;
+}
+
+.timeline-chart-card h3 {
+  margin: 0 0 8px;
+  color: #355070;
+  font-family: "Jua", sans-serif;
+  font-size: 1.08rem;
+}
+
+#timelineTotalChart,
+#timelineIndicatorChart {
+  width: 100%;
+  height: auto;
+  display: block;
+  border-radius: 10px;
+  background: linear-gradient(180deg, #ffffff 0%, #f7fbff 100%);
+}
+
+.timeline-legend {
+  margin-top: 10px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  font-size: 0.9rem;
+  font-weight: 700;
+}
+
+.timeline-legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: #314a68;
+}
+
+.timeline-legend-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+}
+
+.ai-meta {
+  margin: 4px 0 10px;
+  font-weight: 700;
+  color: #2f4d6c;
+}
+
+.ai-panel-group {
+  display: grid;
+  gap: 12px;
+}
+
+.ai-grid-2 {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+.ai-card {
+  border: 2px solid #d7e2f1;
+  border-radius: 14px;
+  padding: 12px;
+  background: #fbfdff;
+}
+
+.ai-card h3,
+.ai-card h4 {
+  margin: 0 0 8px;
+  font-family: "Jua", sans-serif;
+  color: #355070;
+}
+
+.ai-overview {
+  margin: 0;
+  line-height: 1.6;
+}
+
+.ai-list,
+.ai-rec-list {
+  margin: 0;
+  padding-left: 18px;
+  display: grid;
+  gap: 8px;
+}
+
+.ai-rec-list li {
+  line-height: 1.5;
+}
+
 .view-panel {
   display: none;
 }
@@ -700,6 +813,15 @@ td {
     height: calc(100vh - 24px);
     max-width: calc(100vw - 24px);
     max-height: calc(100vh - 24px);
+  }
+
+  .ai-grid-2 {
+    grid-template-columns: 1fr;
+  }
+
+  .timeline-summary {
+    font-size: 0.92rem;
+    line-height: 1.45;
   }
 }
 

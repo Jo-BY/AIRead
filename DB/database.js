@@ -2,12 +2,16 @@ const path = require("path");
 const fs = require("fs");
 const Database = require("better-sqlite3");
 
-const dataDir = path.join(__dirname, "data");
+const defaultDataDir = path.join(__dirname, "data");
+const envDbPath = process.env.DB_PATH ? path.resolve(process.env.DB_PATH) : "";
+const envDbDir = process.env.DB_DIR ? path.resolve(process.env.DB_DIR) : "";
+
+const dataDir = envDbPath ? path.dirname(envDbPath) : envDbDir || defaultDataDir;
 if (!fs.existsSync(dataDir)) {
   fs.mkdirSync(dataDir, { recursive: true });
 }
 
-const dbPath = path.join(dataDir, "literacy.db");
+const dbPath = envDbPath || path.join(dataDir, "literacy.db");
 const db = new Database(dbPath);
 
 function initDatabase() {

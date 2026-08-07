@@ -27,6 +27,44 @@
    - 로그인 화면: http://localhost:3000/
    - 앱 화면: http://localhost:3000/app
 
+## GitHub + Render로 외부 테스트하기
+GitHub URL 자체는 코드 저장소 페이지이며, 앱 테스트는 Render 배포 URL에서 진행합니다.
+
+### 1) GitHub에 최신 코드 반영
+1. 변경사항 확인
+   - git status
+2. 커밋
+   - git add .
+   - git commit -m "Add Render deployment config"
+3. 원격 저장소로 푸시
+   - git push origin main
+
+### 2) Render에서 배포 생성
+1. Render 대시보드에서 New + -> Blueprint 선택
+2. GitHub 저장소 연결 후 배포
+3. 저장소의 render.yaml을 읽어 자동으로 Web Service + Persistent Disk 생성
+
+### 3) Render 환경변수 확인
+- NODE_ENV: production
+- DB_DIR: /var/data
+- TEACHER_PASSWORD: Render가 자동 생성
+
+### 4) 배포 완료 후 외부 접속
+- 서비스 URL 예시: https://airead.onrender.com
+- 로그인 화면: https://airead.onrender.com/
+- 앱 화면: https://airead.onrender.com/app
+- 상태 확인: https://airead.onrender.com/api/health
+
+### 5) 테스트 체크리스트
+1. 학생 로그인 가능 여부
+2. 문해력 평가 저장 후 대시보드 반영 여부
+3. 성장 타임라인 그래프 표시 여부
+4. AI 진단/추천 탭 분석 결과 표시 여부
+
+### 참고
+- Render free 플랜은 슬립이 발생할 수 있어 첫 요청 시 지연될 수 있습니다.
+- DB_DIR를 /var/data로 설정했기 때문에 배포 재시작 이후에도 SQLite 데이터가 유지됩니다.
+
 ## 배포 (WEB/WAS/DB 단일 서버)
 이 프로젝트는 Node 서버 1개에서 WEB 정적파일 + WAS API + DB(SQLite)를 함께 실행합니다.
 
