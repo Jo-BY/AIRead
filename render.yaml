@@ -14,7 +14,7 @@ services:
         value: /var/data
       - key: TEACHER_PASSWORD
         generateValue: true
-    disks:
-      - name: airead-data
-        mountPath: /var/data
-        sizeGB: 1
+    disk:
+      name: airead-data
+      mountPath: /var/data
+      sizeGB: 1
